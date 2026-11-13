@@ -75,7 +75,11 @@ if old_collection:
 
 collection = bpy.data.collections.new(COLLECTION_NAME)
 apartment_collection = bpy.data.collections.get("Apartment Model - Provisional")
-bpy.context.scene.collection.children.link(collection)
+furniture_collection = bpy.data.collections.get("Furniture")
+if furniture_collection is None:
+    bpy.context.scene.collection.children.link(collection)
+else:
+    furniture_collection.children.link(collection)
 
 root = bpy.data.objects.new(ROOT_OBJECT_NAME, None)
 root.empty_display_type = "CUBE"

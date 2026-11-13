@@ -5,6 +5,10 @@ import math
 
 
 COLLECTION_NAME = "Apartment Model - Provisional"
+FURNITURE_COMPONENT_COLLECTIONS = (
+    "Aquarium + Shelf - 95x45x95cm",
+    "Wardrobe Component",
+)
 AREA_TARGET_M2 = 53.0
 WALL_HEIGHT_M = 2.40
 EXTERIOR_WALL_M = 0.12
@@ -382,6 +386,19 @@ def remove_collection_tree(collection):
 
 
 if old_collection:
+    component_collections = [
+        bpy.data.collections.get(name)
+        for name in FURNITURE_COMPONENT_COLLECTIONS
+    ]
+    for component_collection in component_collections:
+        if component_collection is None:
+            continue
+        for parent_collection in bpy.data.collections:
+            if parent_collection.children.get(component_collection.name) is component_collection:
+                parent_collection.children.unlink(component_collection)
+        if scene.collection.children.get(component_collection.name) is component_collection:
+            scene.collection.children.unlink(component_collection)
+        scene.collection.children.link(component_collection)
     remove_collection_tree(old_collection)
 
 root = bpy.data.collections.new(COLLECTION_NAME)
@@ -401,6 +418,17 @@ for name in (
     child = bpy.data.collections.new(name)
     root.children.link(child)
     collections[name] = child
+
+for component_name in FURNITURE_COMPONENT_COLLECTIONS:
+    component_collection = bpy.data.collections.get(component_name)
+    if component_collection is None:
+        continue
+    for parent_collection in bpy.data.collections:
+        if parent_collection.children.get(component_collection.name) is component_collection:
+            parent_collection.children.unlink(component_collection)
+    if scene.collection.children.get(component_collection.name) is component_collection:
+        scene.collection.children.unlink(component_collection)
+    collections["Furniture"].children.link(component_collection)
 
 floor_mat = make_material("Apartment - oak floor joints", (0.47, 0.35, 0.24, 1.0))
 wall_mat = make_material("Apartment - warm white walls", (0.84, 0.82, 0.76, 1.0))
@@ -677,6 +705,8 @@ for wall_name, length, text_location, arrow_start, arrow_end in living_wall_anno
 # The user uses the living room as a bedroom; keep this bed movable as one parent object.
 bed_center_x = living_mid_x
 bed_center_y = living_mid_y
+bed_collection = bpy.data.collections.new("Movable Bed")
+collections["Furniture"].children.link(bed_collection)
 bed_frame_mat = make_material("Bedroom - walnut bed frame", (0.32, 0.22, 0.15, 1.0))
 mattress_mat = make_material("Bedroom - ivory mattress", (0.88, 0.86, 0.81, 1.0))
 duvet_mat = make_material("Bedroom - muted sage duvet", (0.36, 0.49, 0.45, 1.0))
@@ -687,7 +717,7 @@ bed_parts = [
         (bed_center_x, bed_center_y, 0.14 + BED_VERTICAL_OFFSET_M),
         (BED_MATTRESS_WIDTH_M + 0.12, BED_MATTRESS_LENGTH_M + 0.16, BED_FRAME_HEIGHT_M),
         bed_frame_mat,
-        collections["Furniture"],
+        bed_collection,
         0.035,
     ),
     add_beveled_box(
@@ -695,7 +725,7 @@ bed_parts = [
         (bed_center_x, bed_center_y, 0.35 + BED_VERTICAL_OFFSET_M),
         (BED_MATTRESS_WIDTH_M, BED_MATTRESS_LENGTH_M, BED_MATTRESS_THICKNESS_M),
         mattress_mat,
-        collections["Furniture"],
+        bed_collection,
         0.045,
     ),
     add_beveled_box(
@@ -703,7 +733,7 @@ bed_parts = [
         (bed_center_x, bed_center_y - 0.31, 0.50 + BED_VERTICAL_OFFSET_M),
         (BED_MATTRESS_WIDTH_M - 0.06, BED_MATTRESS_LENGTH_M * 0.67, 0.075),
         duvet_mat,
-        collections["Furniture"],
+        bed_collection,
         0.035,
     ),
     add_beveled_box(
@@ -711,7 +741,7 @@ bed_parts = [
         (bed_center_x, bed_center_y + BED_MATTRESS_LENGTH_M / 2 + 0.12, 0.67 + BED_VERTICAL_OFFSET_M),
         (BED_MATTRESS_WIDTH_M + 0.20, 0.12, 0.94),
         bed_frame_mat,
-        collections["Furniture"],
+        bed_collection,
         0.035,
     ),
 ]
@@ -722,7 +752,7 @@ for index, x_offset in enumerate((-0.38, 0.38), start=1):
             (bed_center_x + x_offset, bed_center_y + 0.72, 0.52 + BED_VERTICAL_OFFSET_M),
             (0.72, 0.44, 0.15),
             pillow_mat,
-            collections["Furniture"],
+            bed_collection,
             0.065,
         )
     )
@@ -742,13 +772,13 @@ for x_offset in (
                 (bed_center_x + x_offset, bed_center_y + y_offset, bed_support_height / 2),
                 (BED_SUPPORT_WIDTH_M, BED_SUPPORT_WIDTH_M, bed_support_height),
                 bed_frame_mat,
-                collections["Furniture"],
+                bed_collection,
                 0.01,
             )
         )
 
 bed_root = bpy.data.objects.new("Movable Bed - 160 x 200 cm", None)
-collections["Furniture"].objects.link(bed_root)
+bed_collection.objects.link(bed_root)
 bed_root.location = (bed_center_x, bed_center_y, 0.0)
 bed_root.empty_display_type = "CUBE"
 bed_root.empty_display_size = 0.25
@@ -756,7 +786,7 @@ bed_root["mattress_width_m"] = BED_MATTRESS_WIDTH_M
 bed_root["mattress_length_m"] = BED_MATTRESS_LENGTH_M
 bed_root["sleeping_surface_height_m"] = BED_SLEEPING_SURFACE_HEIGHT_M
 bed_root["placement"] = "Living room, used as the bedroom at the user's request."
-bed_root["how_to_move"] = "Select this parent object in the Furniture collection and move it; parts are selection-locked."
+bed_root["how_to_move"] = "Select this parent object in the Movable Bed collection and move it; parts are selection-locked."
 for part in bed_parts:
     for vertex in part.data.vertices:
         vertex.co.x -= bed_center_x

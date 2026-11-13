@@ -81,7 +81,11 @@ def build_aquarium_shelf():
     scene = bpy.context.scene
 
     root_collection = bpy.data.collections.new(COLLECTION_NAME)
-    scene.collection.children.link(root_collection)
+    furniture_collection = bpy.data.collections.get("Furniture")
+    if furniture_collection is None:
+        scene.collection.children.link(root_collection)
+    else:
+        furniture_collection.children.link(root_collection)
     stand_collection = bpy.data.collections.new("Shelf Stand")
     tank_collection = bpy.data.collections.new("Aquarium Tank")
     root_collection.children.link(stand_collection)
