@@ -6,7 +6,7 @@ import bpy
 COLLECTION_NAME = "Wardrobe Component"
 ROOT_OBJECT_NAME = "Wardrobe - Move as one"
 
-# Confirmed plan dimensions; the height and board thickness are provisional.
+# User-provided dimensions; the height and board thickness are provisional.
 MAIN_RUN_WIDTH_M = 1.50
 BAY_COUNT = 3
 NOMINAL_BAY_WIDTH_M = MAIN_RUN_WIDTH_M / BAY_COUNT
@@ -68,6 +68,8 @@ def add_box(name, center, dimensions, material, collection, parent):
 
 
 old_collection = bpy.data.collections.get(COLLECTION_NAME)
+old_root = bpy.data.objects.get(ROOT_OBJECT_NAME)
+old_root_matrix = old_root.matrix_world.copy() if old_root and old_collection and old_root.name in old_collection.objects else None
 if old_collection:
     for obj in list(old_collection.objects):
         bpy.data.objects.remove(obj, do_unlink=True)
@@ -82,6 +84,8 @@ root.empty_display_type = "CUBE"
 root.empty_display_size = 0.15
 root.location = SCENE_PLACEMENT if apartment_collection else (0.0, 0.0, 0.0)
 collection.objects.link(root)
+if old_root_matrix is not None:
+    root.matrix_world = old_root_matrix
 
 white = make_material("Wardrobe - Warm White", (0.91, 0.89, 0.85, 1.0), 0.78)
 mirror = make_material("Wardrobe - Mirror", (0.48, 0.56, 0.60, 1.0), 0.12)
@@ -93,15 +97,16 @@ height = WARDROBE_HEIGHT_M
 thickness = PANEL_THICKNESS_M
 bay_width = NOMINAL_BAY_WIDTH_M
 main_front_y = -depth
-main_back_y = 0.0
+main_back_y = thickness
 main_center_y = (main_front_y + main_back_y) / 2
-main_shelf_y = (main_front_y + thickness + main_back_y - thickness) / 2
+main_shelf_y = main_front_y / 2
+main_case_depth = depth + thickness
 
 # Main three-bay shelving run. Overall width is 150 cm; vertical panels sit
 # within that span, so clear openings are slightly narrower than 50 cm.
 add_box(
     "Main run back panel",
-    (width / 2, -thickness / 2, height / 2),
+    (width / 2, thickness / 2, height / 2),
     (width, thickness, height),
     white,
     collection,
@@ -111,7 +116,7 @@ for index, x in enumerate((thickness / 2, width - thickness / 2)):
     add_box(
         "Main run end panel " + str(index + 1),
         (x, main_center_y, height / 2),
-        (thickness, depth, height),
+        (thickness, main_case_depth, height),
         white,
         collection,
         root,
@@ -120,7 +125,7 @@ for index in range(1, BAY_COUNT):
     add_box(
         "Main run divider " + str(index),
         (index * bay_width, main_center_y, height / 2),
-        (thickness, depth, height),
+        (thickness, main_case_depth, height),
         white,
         collection,
         root,
@@ -132,7 +137,7 @@ for name, z in (
     add_box(
         name,
         (width / 2, main_center_y, z),
-        (width, depth, thickness),
+        (width, main_case_depth, thickness),
         white,
         collection,
         root,
@@ -165,22 +170,25 @@ for bay_index in range(BAY_COUNT):
         )
 
 for bay_index in range(BAY_COUNT):
-    bay_center_x = (bay_index + 0.5) * bay_width
-    for shelf_index, z in enumerate((0.93, 1.30, 1.67, height - thickness / 2)):
+    left = max(bay_index * bay_width + thickness / 2, thickness)
+    right = min((bay_index + 1) * bay_width - thickness / 2, width - thickness)
+    bay_center_x = (left + right) / 2
+    for shelf_index, z in enumerate((0.93, 1.30, 1.67)):
         add_box(
             "Main bay %d shelf %d" % (bay_index + 1, shelf_index + 1),
             (bay_center_x, main_shelf_y, z),
-            (bay_width - thickness, depth - 2 * thickness, thickness),
+            (right - left, depth, thickness),
             white,
             collection,
             root,
         )
 
 # Perpendicular 60 cm return with open shelves above broad lower drawers.
-return_depth = depth
+return_depth = depth + thickness
 return_width = RETURN_LENGTH_M
 return_x0 = width - return_depth
 return_center_x = width - return_depth / 2
+return_shelf_x = width - thickness - depth / 2
 return_y0 = main_front_y
 return_y1 = return_y0 - return_width
 return_center_y = (return_y0 + return_y1) / 2
@@ -210,8 +218,8 @@ for name, z in (
 ):
     add_box(
         name,
-        (return_center_x, return_center_y, z),
-        (return_depth - thickness, return_width - 2 * thickness, thickness),
+        (return_shelf_x, return_center_y, z),
+        (depth, return_width - 2 * thickness, thickness),
         white,
         collection,
         root,
@@ -237,13 +245,13 @@ for drawer_index in range(4):
         root,
     )
 
-# The 50 cm mirror is a separate framed panel on the outer face of the return.
+# The 50 cm measurement is the reflective face; the frame adds 5 cm.
 mirror_center_x = width + thickness / 2
 mirror_center_z = height / 2
 add_box(
     "Mirror section backing",
     (mirror_center_x, return_center_y, mirror_center_z),
-    (thickness, MIRROR_WIDTH_M, height),
+    (thickness, MIRROR_WIDTH_M + 0.05, height),
     white,
     collection,
     root,
@@ -251,7 +259,7 @@ add_box(
 add_box(
     "Mirror section reflective face",
     (width + thickness + 0.003, return_center_y, mirror_center_z),
-    (0.006, MIRROR_WIDTH_M - 0.05, height - 0.06),
+    (0.006, MIRROR_WIDTH_M, height - 0.06),
     mirror,
     collection,
     root,
@@ -268,8 +276,10 @@ root["overall_height_m"] = height
 root["panel_thickness_estimate_m"] = thickness
 root["dimensions_note"] = (
     "Main run is 1.50 m overall with three nominal 0.50 m bays; "
-    "the 0.35 m shelf depth, 0.60 m return, and 0.50 m mirror width are user-provided. "
-    "Height (2.10 m) and panel thickness (0.018 m) are provisional estimates."
+    "The shelves are 0.35 m deep, the return is 0.60 m long, and the mirror face is "
+    "0.50 m wide. Back panels add thickness to the shelf depth; the mirror frame "
+    "adds 0.05 m to its width. Height (2.10 m), panel thickness (0.018 m), "
+    "and frame width are provisional estimates."
 )
 collection["source_script"] = "blender/wardrobe_component.py"
 collection["placement_note"] = (
